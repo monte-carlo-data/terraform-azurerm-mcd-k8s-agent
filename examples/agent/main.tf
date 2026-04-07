@@ -3,6 +3,7 @@ module "mcd_on_prem_agent" {
 
   location            = "East US"
   backend_service_url = "https://your-instance.getmontecarlo.com"
+  helm                = { chart_version = "0.0.2" }
 }
 
 output "cluster_name" {

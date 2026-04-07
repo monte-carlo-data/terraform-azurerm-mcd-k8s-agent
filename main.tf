@@ -1,6 +1,4 @@
 locals {
-  mcd_wrapper_version       = "0.1.0"
-  mcd_agent_platform        = "AZURE"
   mcd_agent_service_name    = "REMOTE_AGENT"
   mcd_agent_deployment_type = "TERRAFORM"
 
@@ -20,9 +18,14 @@ locals {
   effective_resource_group_name     = var.resource_group.existing_name != null ? var.resource_group.existing_name : azurerm_resource_group.mcd_agent[0].name
   effective_resource_group_location = var.location
   effective_storage_account_name    = var.storage.create_account ? azurerm_storage_account.mcd_agent[0].name : var.storage.existing_account_name
+  effective_storage_account_id      = var.storage.create_account ? azurerm_storage_account.mcd_agent[0].id : data.azurerm_storage_account.existing[0].id
   effective_storage_container_name  = var.storage.create_account ? azurerm_storage_container.mcd_agent[0].name : var.storage.existing_container_name
   effective_key_vault_url           = var.token_secret.create_key_vault ? azurerm_key_vault.mcd_agent[0].vault_uri : var.token_secret.existing_key_vault_url
+  effective_key_vault_id            = var.token_secret.create_key_vault ? azurerm_key_vault.mcd_agent[0].id : data.azurerm_key_vault.existing[0].id
   effective_tenant_id               = var.token_secret.tenant_id != null ? var.token_secret.tenant_id : data.azurerm_client_config.current.tenant_id
+  effective_subnet_id               = var.networking.create_vnet ? azurerm_subnet.mcd_agent[0].id : var.networking.existing_subnet_id
+  effective_vnet_id                 = var.networking.create_vnet ? azurerm_virtual_network.mcd_agent[0].id : var.networking.existing_vnet_id
+  effective_private_link_subnet_id  = var.private_link == null ? null : (var.networking.create_vnet ? azurerm_subnet.private_link[0].id : var.private_link.existing_subnet_id)
   effective_aks_oidc_issuer_url     = var.cluster.create ? azurerm_kubernetes_cluster.mcd_agent[0].oidc_issuer_url : data.azurerm_kubernetes_cluster.existing[0].oidc_issuer_url
 
   cluster_endpoint           = var.cluster.create ? azurerm_kubernetes_cluster.mcd_agent[0].kube_config[0].host : data.azurerm_kubernetes_cluster.existing[0].kube_config[0].host
@@ -41,6 +44,18 @@ data "azurerm_kubernetes_cluster" "existing" {
   count               = var.cluster.create ? 0 : 1
   name                = var.cluster.existing_cluster_name
   resource_group_name = var.cluster.existing_cluster_resource_group_name
+}
+
+data "azurerm_storage_account" "existing" {
+  count               = var.storage.create_account ? 0 : 1
+  name                = var.storage.existing_account_name
+  resource_group_name = var.storage.existing_account_resource_group_name
+}
+
+data "azurerm_key_vault" "existing" {
+  count               = var.token_secret.create_key_vault ? 0 : 1
+  name                = var.token_secret.existing_key_vault_name
+  resource_group_name = var.token_secret.existing_key_vault_resource_group_name
 }
 
 # -----------------------------------------------------------------------------
@@ -83,9 +98,32 @@ resource "azurerm_subnet" "mcd_agent" {
   address_prefixes     = var.networking.subnet_address_prefixes
 }
 
+resource "azurerm_subnet" "private_link" {
+  count                = var.networking.create_vnet && var.private_link != null ? 1 : 0
+  name                 = "${local.mcd_agent_naming_prefix}-pe-subnet-${random_id.mcd_agent_id.hex}"
+  resource_group_name  = local.effective_resource_group_name
+  virtual_network_name = azurerm_virtual_network.mcd_agent[0].name
+  address_prefixes     = var.networking.private_link_subnet_address_prefixes
+}
+
 # -----------------------------------------------------------------------------
 # AKS Cluster (conditional)
 # -----------------------------------------------------------------------------
+
+resource "azurerm_user_assigned_identity" "cluster" {
+  count               = var.cluster.create ? 1 : 0
+  name                = "${local.cluster_name}-cluster-identity"
+  resource_group_name = local.effective_resource_group_name
+  location            = local.effective_resource_group_location
+  tags                = local.default_tags
+}
+
+resource "azurerm_role_assignment" "cluster_network_contributor" {
+  count                = var.cluster.create && var.networking.create_vnet ? 1 : 0
+  scope                = azurerm_virtual_network.mcd_agent[0].id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_user_assigned_identity.cluster[0].principal_id
+}
 
 resource "azurerm_kubernetes_cluster" "mcd_agent" {
   count               = var.cluster.create ? 1 : 0
@@ -99,12 +137,13 @@ resource "azurerm_kubernetes_cluster" "mcd_agent" {
     name            = "default"
     node_count      = var.cluster.default_node_pool.node_count
     vm_size         = var.cluster.default_node_pool.vm_size
-    vnet_subnet_id  = var.networking.create_vnet ? azurerm_subnet.mcd_agent[0].id : var.networking.existing_subnet_id
+    vnet_subnet_id  = local.effective_subnet_id
     os_disk_size_gb = 50
   }
 
   identity {
-    type = "SystemAssigned"
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.cluster[0].id]
   }
 
   oidc_issuer_enabled       = var.cluster.oidc_issuer_enabled
@@ -117,6 +156,8 @@ resource "azurerm_kubernetes_cluster" "mcd_agent" {
   }
 
   tags = local.default_tags
+
+  depends_on = [azurerm_role_assignment.cluster_network_contributor]
 }
 
 # -----------------------------------------------------------------------------
@@ -130,11 +171,19 @@ resource "azurerm_storage_account" "mcd_agent" {
   location            = local.effective_resource_group_location
 
   account_tier                      = "Standard"
-  account_replication_type          = "GRS"
+  account_replication_type          = var.storage.account_replication_type
   https_traffic_only_enabled        = true
+  min_tls_version                   = var.storage.min_tls_version
   allow_nested_items_to_be_public   = false
+  shared_access_key_enabled         = false
   infrastructure_encryption_enabled = true
   tags                              = local.default_tags
+
+  blob_properties {
+    delete_retention_policy {
+      days = 7
+    }
+  }
 }
 
 resource "azurerm_storage_container" "mcd_agent" {
@@ -157,7 +206,7 @@ resource "azurerm_storage_management_policy" "mcd_agent" {
     }
     actions {
       base_blob {
-        delete_after_days_since_creation_greater_than = 90
+        delete_after_days_since_modification_greater_than = 90
       }
     }
   }
@@ -171,7 +220,21 @@ resource "azurerm_storage_management_policy" "mcd_agent" {
     }
     actions {
       base_blob {
-        delete_after_days_since_creation_greater_than = 2
+        delete_after_days_since_modification_greater_than = 2
+      }
+    }
+  }
+
+  rule {
+    name    = "response-expiration"
+    enabled = true
+    filters {
+      blob_types   = ["blockBlob", "appendBlob"]
+      prefix_match = ["${local.mcd_agent_store_container_name}/${local.mcd_agent_store_data_prefix}/responses"]
+    }
+    actions {
+      base_blob {
+        delete_after_days_since_modification_greater_than = 1
       }
     }
   }
@@ -193,11 +256,29 @@ resource "azurerm_key_vault" "mcd_agent" {
   tags                      = local.default_tags
 }
 
+resource "azurerm_role_assignment" "deployer_key_vault_secrets_officer" {
+  count                = var.token_secret.create_key_vault ? 1 : 0
+  scope                = azurerm_key_vault.mcd_agent[0].id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 resource "azurerm_key_vault_secret" "mcd_agent_token" {
   count        = var.token_secret.create_key_vault ? 1 : 0
   name         = var.token_secret.name
   value        = jsonencode({ "mcd_id" = coalesce(var.token_credentials.mcd_id, ""), "mcd_token" = coalesce(var.token_credentials.mcd_token, "") })
   key_vault_id = azurerm_key_vault.mcd_agent[0].id
+
+  depends_on = [azurerm_role_assignment.deployer_key_vault_secrets_officer]
+
+  lifecycle {
+    ignore_changes = [value]
+
+    precondition {
+      condition     = var.token_credentials.mcd_id != null && var.token_credentials.mcd_token != null
+      error_message = "Both mcd_id and mcd_token are required in token_credentials when token_secret.create_key_vault is true."
+    }
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -225,15 +306,13 @@ resource "azurerm_federated_identity_credential" "mcd_agent" {
 # -----------------------------------------------------------------------------
 
 resource "azurerm_role_assignment" "mcd_agent_storage_blob_contributor" {
-  count                = var.storage.create_account ? 1 : 0
-  scope                = azurerm_storage_account.mcd_agent[0].id
+  scope                = local.effective_storage_account_id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_user_assigned_identity.mcd_agent.principal_id
 }
 
 resource "azurerm_role_assignment" "mcd_agent_key_vault_secrets_user" {
-  count                = var.token_secret.create_key_vault ? 1 : 0
-  scope                = azurerm_key_vault.mcd_agent[0].id
+  scope                = local.effective_key_vault_id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_user_assigned_identity.mcd_agent.principal_id
 }
@@ -257,6 +336,25 @@ resource "helm_release" "external_secrets" {
 # Helm - Agent (conditional)
 # -----------------------------------------------------------------------------
 
+resource "kubernetes_namespace_v1" "mcd_agent" {
+  count = var.helm.deploy_agent ? 1 : 0
+
+  metadata {
+    name = local.namespace
+
+    labels = {
+      "app.kubernetes.io/managed-by" = "Helm"
+    }
+
+    annotations = {
+      "meta.helm.sh/release-name"      = "mcd-agent"
+      "meta.helm.sh/release-namespace" = local.namespace
+    }
+  }
+
+  depends_on = [azurerm_kubernetes_cluster.mcd_agent]
+}
+
 resource "helm_release" "mcd_agent" {
   count            = var.helm.deploy_agent ? 1 : 0
   name             = "mcd-agent"
@@ -264,13 +362,14 @@ resource "helm_release" "mcd_agent" {
   chart            = var.helm.chart_name
   version          = var.helm.chart_version
   namespace        = local.namespace
-  create_namespace = true
+  create_namespace = false
 
   values = [local.helm_values_yaml]
 
   depends_on = [
     azurerm_kubernetes_cluster.mcd_agent,
     helm_release.external_secrets,
+    kubernetes_namespace_v1.mcd_agent,
     azurerm_federated_identity_credential.mcd_agent,
     azurerm_role_assignment.mcd_agent_storage_blob_contributor,
     azurerm_role_assignment.mcd_agent_key_vault_secrets_user,
@@ -289,19 +388,13 @@ locals {
     }
 
     container = {
-      port                 = var.agent.container_port
-      backendServiceUrl    = var.backend_service_url
-      gunicornWorkers      = var.agent.gunicorn_workers
-      gunicornThreads      = var.agent.gunicorn_threads
-      storageAccountName   = local.effective_storage_account_name
-      storageBucketName    = local.effective_storage_container_name
-      storageType          = "AZURE_BLOB"
-      opsRunnerThreadCount = tostring(var.agent.ops_runner_thread_count)
-      publisherThreadCount = tostring(var.agent.publisher_thread_count)
+      backendServiceUrl  = var.backend_service_url
+      storageAccountName = local.effective_storage_account_name
+      storageBucketName  = local.effective_storage_container_name
+      storageType        = "AZURE_BLOB"
     }
 
     service = {
-      port        = var.agent.service_port
       annotations = var.helm.service_annotations
     }
 

@@ -3,10 +3,14 @@ module "mcd_on_prem_agent" {
 
   location            = "East US"
   backend_service_url = "https://your-instance.getmontecarlo.com"
+  helm                = { chart_version = "0.0.2" }
 
   # Use an existing AKS cluster
-  cluster    = { create = false, existing_cluster_name = "my-existing-cluster", existing_cluster_resource_group_name = "my-existing-rg" }
-  networking = { create_vnet = false }
+  cluster = { create = false, existing_cluster_name = "my-existing-cluster", existing_cluster_resource_group_name = "my-existing-rg" }
+  networking = {
+    create_vnet        = false
+    existing_subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/my-subnet"
+  }
 }
 
 output "storage_account_name" {

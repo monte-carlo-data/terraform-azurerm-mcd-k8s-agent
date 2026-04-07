@@ -44,6 +44,16 @@ output "namespace" {
   value       = local.namespace
 }
 
+output "private_endpoint_id" {
+  description = "ID of the Monte Carlo Private Link endpoint."
+  value       = var.private_link != null ? azurerm_private_endpoint.monte_carlo[0].id : null
+}
+
+output "private_endpoint_ip" {
+  description = "Private IP address of the Monte Carlo Private Link endpoint."
+  value       = var.private_link != null ? azurerm_private_endpoint.monte_carlo[0].private_service_connection[0].private_ip_address : null
+}
+
 output "helm_values" {
   description = "Helm values used for agent deployment. Use these for manual Helm deployment when deploy_agent is false."
   value       = local.helm_values_yaml

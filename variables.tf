@@ -7,9 +7,8 @@ variable "location" {
 }
 
 variable "backend_service_url" {
-  description = "The Monte Carlo backend service URL. Obtain this from Monte Carlo support."
+  description = "The Monte Carlo backend service URL. Obtain this from Monte Carlo -> Account information -> Agent Service -> Public endpoint (or Private link endpoint if using PrivateLink)."
   type        = string
-  default     = "https://artemis.dev.getmontecarlo.com"
 }
 
 # --- Grouped Object Variables ---
@@ -30,6 +29,11 @@ variable "cluster" {
     workload_identity_enabled = optional(bool, true)
   })
   default = {}
+
+  validation {
+    condition     = var.cluster.create || (var.cluster.existing_cluster_name != null && var.cluster.existing_cluster_resource_group_name != null)
+    error_message = "Both existing_cluster_name and existing_cluster_resource_group_name are required when cluster.create is false."
+  }
 }
 
 variable "resource_group" {
@@ -43,33 +47,55 @@ variable "resource_group" {
 variable "networking" {
   description = "Networking configuration."
   type = object({
-    create_vnet             = optional(bool, true)
-    vnet_address_space      = optional(list(string), ["10.18.0.0/16"])
-    subnet_address_prefixes = optional(list(string), ["10.18.0.0/24"])
-    existing_subnet_id      = optional(string, null)
+    create_vnet                          = optional(bool, true)
+    vnet_address_space                   = optional(list(string), ["10.18.0.0/16"])
+    subnet_address_prefixes              = optional(list(string), ["10.18.0.0/24"])
+    existing_subnet_id                   = optional(string, null)
+    existing_vnet_id                     = optional(string, null)
+    private_link_subnet_address_prefixes = optional(list(string), ["10.18.1.0/24"])
   })
   default = {}
+
+  validation {
+    condition     = var.networking.create_vnet || var.networking.existing_subnet_id != null
+    error_message = "existing_subnet_id is required when networking.create_vnet is false."
+  }
 }
 
 variable "storage" {
   description = "Storage account configuration."
   type = object({
-    create_account          = optional(bool, true)
-    existing_account_name   = optional(string, null)
-    existing_container_name = optional(string, null)
+    create_account                       = optional(bool, true)
+    existing_account_name                = optional(string, null)
+    existing_account_resource_group_name = optional(string, null)
+    existing_container_name              = optional(string, null)
+    account_replication_type             = optional(string, "GRS")
+    min_tls_version                      = optional(string, "TLS1_2")
   })
   default = {}
+
+  validation {
+    condition     = var.storage.create_account || (var.storage.existing_account_name != null && var.storage.existing_account_resource_group_name != null && var.storage.existing_container_name != null)
+    error_message = "existing_account_name, existing_account_resource_group_name, and existing_container_name are required when storage.create_account is false."
+  }
 }
 
 variable "token_secret" {
   description = "Key Vault and token secret store configuration."
   type = object({
-    create_key_vault       = optional(bool, true)
-    existing_key_vault_url = optional(string, null)
-    tenant_id              = optional(string, null)
-    name                   = optional(string, "mcd-agent-token")
+    create_key_vault                       = optional(bool, true)
+    existing_key_vault_name                = optional(string, null)
+    existing_key_vault_resource_group_name = optional(string, null)
+    existing_key_vault_url                 = optional(string, null)
+    tenant_id                              = optional(string, null)
+    name                                   = optional(string, "mcd-agent-token")
   })
   default = {}
+
+  validation {
+    condition     = var.token_secret.create_key_vault || (var.token_secret.existing_key_vault_name != null && var.token_secret.existing_key_vault_resource_group_name != null && var.token_secret.existing_key_vault_url != null)
+    error_message = "existing_key_vault_name, existing_key_vault_resource_group_name, and existing_key_vault_url are required when token_secret.create_key_vault is false."
+  }
 }
 
 variable "token_credentials" {
@@ -94,16 +120,9 @@ variable "integration_secrets" {
 variable "agent" {
   description = "Agent runtime configuration."
   type = object({
-    namespace               = optional(string, "mcd-agent")
-    image                   = optional(string, "montecarlodata/pre-release-agent:latest-generic")
-    replica_count           = optional(number, 1)
-    gunicorn_workers        = optional(number, 1)
-    gunicorn_threads        = optional(number, 1)
-    ops_runner_thread_count = optional(number, 5)
-    publisher_thread_count  = optional(number, 2)
-    service_port            = optional(number, 8080)
-    container_port          = optional(number, 8080)
-    remote_upgradable       = optional(bool, true)
+    namespace     = optional(string, "mcd-agent")
+    image         = optional(string, "montecarlodata/agent:latest-generic")
+    replica_count = optional(number, 1)
   })
   default = {}
 }
@@ -114,13 +133,22 @@ variable "helm" {
     deploy_agent                      = optional(bool, true)
     install_external_secrets_operator = optional(bool, true)
     chart_repository                  = optional(string, "oci://registry-1.docker.io/montecarlodata")
-    chart_name                        = optional(string, "pre-release-generic-agent-helm")
-    chart_version                     = optional(string, "0.0.1-rc193")
+    chart_name                        = optional(string, "generic-agent-helm")
+    chart_version                     = string
     service_annotations               = optional(map(string), {})
     enabled_logs_collector            = optional(bool, true)
     enabled_metrics_collector         = optional(bool, true)
   })
-  default = {}
+}
+
+variable "private_link" {
+  description = "Azure Private Link configuration for connecting to the Monte Carlo backend via a private endpoint. When set, creates a private endpoint, private DNS zone, and VNet link. The Private Link Service resource ID and subresource name can be obtained from Monte Carlo -> Account information -> Agent Service -> Azure private link."
+  type = object({
+    private_link_service_resource_id = string
+    subresource_names                = optional(list(string), [])
+    existing_subnet_id               = optional(string, null)
+  })
+  default = null
 }
 
 variable "custom_values" {

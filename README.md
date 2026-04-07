@@ -16,8 +16,7 @@ The identity running Terraform (your user or service principal) needs the follow
 | Role | Purpose | Required When |
 |---|---|---|
 | **Contributor** | Create resource groups, AKS clusters, storage accounts, Key Vaults, VNets | Always (for full deployment) |
-| **Key Vault Administrator** | Write the initial agent token secret to Key Vault | `token_secret.create_key_vault = true` |
-| **User Access Administrator** or **Owner** | Create role assignments for Key Vault and Storage access (see below) | `token_secret.create_key_vault = true` or `storage.create_account = true` |
+| **User Access Administrator** or **Owner** | Create role assignments for Key Vault and Storage access (see below) | Always |
 
 ### Role Assignments Created by This Module
 
@@ -25,6 +24,7 @@ This module creates the following role assignments, which require `Microsoft.Aut
 
 | Role Assigned | Assignee | Scope | Purpose |
 |---|---|---|---|
+| **Key Vault Secrets Officer** | Terraform deployer | Key Vault | Allow Terraform to create the initial agent token secret |
 | **Key Vault Secrets User** | Managed Identity | Key Vault | Allow the agent to read secrets at runtime |
 | **Storage Blob Data Contributor** | Managed Identity | Storage Account | Allow the agent to read/write blob data |
 
@@ -42,6 +42,7 @@ module "mcd_agent" {
 
   location            = "East US"
   backend_service_url = "https://your-instance.getmontecarlo.com"
+  helm                = { chart_version = "0.0.2" }
 }
 ```
 
@@ -53,6 +54,7 @@ module "mcd_agent" {
 
   location            = "East US"
   backend_service_url = "https://your-instance.getmontecarlo.com"
+  helm                = { chart_version = "0.0.2" }
 
   networking = {
     create_vnet        = false
@@ -69,9 +71,33 @@ module "mcd_agent" {
 
   location            = "East US"
   backend_service_url = "https://your-instance.getmontecarlo.com"
+  helm                = { chart_version = "0.0.2" }
 
-  cluster    = { create = false, existing_cluster_name = "my-cluster", existing_cluster_resource_group_name = "my-rg" }
-  networking = { create_vnet = false }
+  cluster = {
+    create                               = false
+    existing_cluster_name                = "my-cluster"
+    existing_cluster_resource_group_name = "my-rg"
+  }
+  networking = {
+    create_vnet        = false
+    existing_subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/my-subnet"
+  }
+}
+```
+
+### Private Link
+
+```hcl
+module "mcd_agent" {
+  source = "monte-carlo-data/mcd-agent-k8s/azurerm"
+
+  location            = "East US"
+  backend_service_url = "https://artemis.privatelink.getmontecarlo.com"
+  helm                = { chart_version = "0.0.2" }
+
+  private_link = {
+    private_link_service_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/mc-rg/providers/Microsoft.Network/privateLinkServices/mc-pls"
+  }
 }
 ```
 
@@ -83,7 +109,7 @@ module "mcd_agent" {
 
   location            = "East US"
   backend_service_url = "https://your-instance.getmontecarlo.com"
-  helm                = { deploy_agent = false }
+  helm                = { chart_version = "0.0.2", deploy_agent = false }
 }
 
 output "helm_values" {
@@ -118,7 +144,9 @@ output "helm_values" {
 | managed_identity_client_id | Client ID of the managed identity |
 | managed_identity_principal_id | Principal ID of the managed identity |
 | namespace | Kubernetes namespace for the agent |
-| helm_values | Helm values for manual deployment (sensitive) |
+| private_endpoint_id | ID of the Monte Carlo Private Link endpoint |
+| private_endpoint_ip | Private IP address of the Monte Carlo Private Link endpoint |
+| helm_values | Helm values for manual deployment |
 
 ## Releases and Development
 

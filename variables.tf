@@ -47,12 +47,13 @@ variable "resource_group" {
 variable "networking" {
   description = "Networking configuration."
   type = object({
-    create_vnet                          = optional(bool, true)
-    vnet_address_space                   = optional(list(string), ["10.18.0.0/16"])
-    subnet_address_prefixes              = optional(list(string), ["10.18.0.0/24"])
-    existing_subnet_id                   = optional(string, null)
-    existing_vnet_id                     = optional(string, null)
-    private_link_subnet_address_prefixes = optional(list(string), ["10.18.1.0/24"])
+    create_vnet                               = optional(bool, true)
+    vnet_address_space                        = optional(list(string), ["10.18.0.0/16"])
+    subnet_address_prefixes                   = optional(list(string), ["10.18.0.0/24"])
+    existing_subnet_id                        = optional(string, null)
+    existing_vnet_id                          = optional(string, null)
+    private_endpoints_subnet_address_prefixes = optional(list(string), ["10.18.1.0/24"])
+    existing_private_endpoints_subnet_id      = optional(string, null)
   })
   default = {}
 
@@ -146,7 +147,6 @@ variable "private_link" {
   type = object({
     private_link_service_resource_id = string
     subresource_names                = optional(list(string), [])
-    existing_subnet_id               = optional(string, null)
   })
   default = null
 }

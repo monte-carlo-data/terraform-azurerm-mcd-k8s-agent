@@ -12,21 +12,21 @@ locals {
     "mcd-agent-deployment-type" = lower(local.mcd_agent_deployment_type)
   })
 
-  mcd_agent_naming_prefix           = "mcd-agent"
-  mcd_agent_store_container_name    = "mcdstore"
-  mcd_agent_store_data_prefix       = "mcd"
-  effective_resource_group_name     = var.resource_group.existing_name != null ? var.resource_group.existing_name : azurerm_resource_group.mcd_agent[0].name
-  effective_resource_group_location = var.location
-  effective_storage_account_name    = var.storage.create_account ? azurerm_storage_account.mcd_agent[0].name : var.storage.existing_account_name
-  effective_storage_account_id      = var.storage.create_account ? azurerm_storage_account.mcd_agent[0].id : data.azurerm_storage_account.existing[0].id
-  effective_storage_container_name  = var.storage.create_account ? azurerm_storage_container.mcd_agent[0].name : var.storage.existing_container_name
-  effective_key_vault_url           = var.token_secret.create_key_vault ? azurerm_key_vault.mcd_agent[0].vault_uri : var.token_secret.existing_key_vault_url
-  effective_key_vault_id            = var.token_secret.create_key_vault ? azurerm_key_vault.mcd_agent[0].id : data.azurerm_key_vault.existing[0].id
-  effective_tenant_id               = var.token_secret.tenant_id != null ? var.token_secret.tenant_id : data.azurerm_client_config.current.tenant_id
-  effective_subnet_id               = var.networking.create_vnet ? azurerm_subnet.mcd_agent[0].id : var.networking.existing_subnet_id
-  effective_vnet_id                 = var.networking.create_vnet ? azurerm_virtual_network.mcd_agent[0].id : var.networking.existing_vnet_id
-  effective_private_link_subnet_id  = var.private_link == null ? null : (var.networking.create_vnet ? azurerm_subnet.private_link[0].id : var.private_link.existing_subnet_id)
-  effective_aks_oidc_issuer_url     = var.cluster.create ? azurerm_kubernetes_cluster.mcd_agent[0].oidc_issuer_url : data.azurerm_kubernetes_cluster.existing[0].oidc_issuer_url
+  mcd_agent_naming_prefix               = "mcd-agent"
+  mcd_agent_store_container_name        = "mcdstore"
+  mcd_agent_store_data_prefix           = "mcd"
+  effective_resource_group_name         = var.resource_group.existing_name != null ? var.resource_group.existing_name : azurerm_resource_group.mcd_agent[0].name
+  effective_resource_group_location     = var.location
+  effective_storage_account_name        = var.storage.create_account ? azurerm_storage_account.mcd_agent[0].name : var.storage.existing_account_name
+  effective_storage_account_id          = var.storage.create_account ? azurerm_storage_account.mcd_agent[0].id : data.azurerm_storage_account.existing[0].id
+  effective_storage_container_name      = var.storage.create_account ? azurerm_storage_container.mcd_agent[0].name : var.storage.existing_container_name
+  effective_key_vault_url               = var.token_secret.create_key_vault ? azurerm_key_vault.mcd_agent[0].vault_uri : var.token_secret.existing_key_vault_url
+  effective_key_vault_id                = var.token_secret.create_key_vault ? azurerm_key_vault.mcd_agent[0].id : data.azurerm_key_vault.existing[0].id
+  effective_tenant_id                   = var.token_secret.tenant_id != null ? var.token_secret.tenant_id : data.azurerm_client_config.current.tenant_id
+  effective_subnet_id                   = var.networking.create_vnet ? azurerm_subnet.mcd_agent[0].id : var.networking.existing_subnet_id
+  effective_vnet_id                     = var.networking.create_vnet ? azurerm_virtual_network.mcd_agent[0].id : var.networking.existing_vnet_id
+  effective_private_endpoints_subnet_id = var.networking.create_vnet ? azurerm_subnet.private_endpoints[0].id : var.networking.existing_private_endpoints_subnet_id
+  effective_aks_oidc_issuer_url         = var.cluster.create ? azurerm_kubernetes_cluster.mcd_agent[0].oidc_issuer_url : data.azurerm_kubernetes_cluster.existing[0].oidc_issuer_url
 
   cluster_endpoint           = var.cluster.create ? azurerm_kubernetes_cluster.mcd_agent[0].kube_config[0].host : data.azurerm_kubernetes_cluster.existing[0].kube_config[0].host
   cluster_ca_certificate     = base64decode(var.cluster.create ? azurerm_kubernetes_cluster.mcd_agent[0].kube_config[0].cluster_ca_certificate : data.azurerm_kubernetes_cluster.existing[0].kube_config[0].cluster_ca_certificate)
@@ -98,12 +98,12 @@ resource "azurerm_subnet" "mcd_agent" {
   address_prefixes     = var.networking.subnet_address_prefixes
 }
 
-resource "azurerm_subnet" "private_link" {
-  count                = var.networking.create_vnet && var.private_link != null ? 1 : 0
+resource "azurerm_subnet" "private_endpoints" {
+  count                = var.networking.create_vnet ? 1 : 0
   name                 = "${local.mcd_agent_naming_prefix}-pe-subnet-${random_id.mcd_agent_id.hex}"
   resource_group_name  = local.effective_resource_group_name
   virtual_network_name = azurerm_virtual_network.mcd_agent[0].name
-  address_prefixes     = var.networking.private_link_subnet_address_prefixes
+  address_prefixes     = var.networking.private_endpoints_subnet_address_prefixes
 }
 
 # -----------------------------------------------------------------------------
@@ -176,6 +176,7 @@ resource "azurerm_storage_account" "mcd_agent" {
   min_tls_version                   = var.storage.min_tls_version
   allow_nested_items_to_be_public   = false
   shared_access_key_enabled         = false
+  public_network_access_enabled     = false
   infrastructure_encryption_enabled = true
   tags                              = local.default_tags
 

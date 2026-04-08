@@ -1,6 +1,6 @@
 # Monte Carlo Agent - Azure AKS Module
 
-This module deploys the [Monte Carlo](https://www.montecarlodata.com/) containerized agent on Azure using AKS (Azure Kubernetes Service).
+This module deploys the [Monte Carlo](https://www.montecarlodata.com/) containerized agent on Azure using AKS (Azure Kubernetes Service). Storage and Key Vault resources are automatically secured with private endpoints when created by the module.
 
 ## Prerequisites
 
@@ -57,8 +57,10 @@ module "mcd_agent" {
   helm                = { chart_version = "0.0.2" }
 
   networking = {
-    create_vnet        = false
-    existing_subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/my-subnet"
+    create_vnet                          = false
+    existing_subnet_id                   = "/subscriptions/.../subnets/aks-subnet"
+    existing_vnet_id                     = "/subscriptions/.../virtualNetworks/my-vnet"
+    existing_private_endpoints_subnet_id = "/subscriptions/.../subnets/pe-subnet"
   }
 }
 ```
@@ -79,8 +81,10 @@ module "mcd_agent" {
     existing_cluster_resource_group_name = "my-rg"
   }
   networking = {
-    create_vnet        = false
-    existing_subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/my-subnet"
+    create_vnet                          = false
+    existing_subnet_id                   = "/subscriptions/.../subnets/aks-subnet"
+    existing_vnet_id                     = "/subscriptions/.../virtualNetworks/my-vnet"
+    existing_private_endpoints_subnet_id = "/subscriptions/.../subnets/pe-subnet"
   }
 }
 ```

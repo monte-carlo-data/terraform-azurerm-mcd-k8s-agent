@@ -12,7 +12,7 @@ resource "azurerm_private_endpoint" "monte_carlo" {
   name                = "${local.mcd_agent_naming_prefix}-mc-pe-${random_id.mcd_agent_id.hex}"
   resource_group_name = local.effective_resource_group_name
   location            = local.effective_resource_group_location
-  subnet_id           = local.effective_private_link_subnet_id
+  subnet_id           = local.effective_private_endpoints_subnet_id
   tags                = local.default_tags
 
   private_service_connection {
@@ -34,10 +34,6 @@ resource "azurerm_private_endpoint" "monte_carlo" {
       error_message = "A VNet is required for private link. Either set networking.create_vnet = true or provide networking.existing_vnet_id."
     }
 
-    precondition {
-      condition     = var.networking.create_vnet || var.private_link.existing_subnet_id != null
-      error_message = "private_link.existing_subnet_id is required when using an existing VNet (networking.create_vnet = false)."
-    }
   }
 }
 

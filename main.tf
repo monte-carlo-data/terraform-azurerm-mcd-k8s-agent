@@ -176,7 +176,6 @@ resource "azurerm_storage_account" "mcd_agent" {
   min_tls_version                   = var.storage.min_tls_version
   allow_nested_items_to_be_public   = false
   shared_access_key_enabled         = false
-  public_network_access_enabled     = false
   infrastructure_encryption_enabled = true
   tags                              = local.default_tags
 
@@ -184,6 +183,10 @@ resource "azurerm_storage_account" "mcd_agent" {
     delete_retention_policy {
       days = 7
     }
+  }
+
+  lifecycle {
+    ignore_changes = [public_network_access_enabled]
   }
 }
 

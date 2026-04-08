@@ -140,10 +140,17 @@ Alternatively, use an existing Key Vault with the token pre-populated via the `t
 
 ## After Deployment
 
-Configure kubectl access:
-```bash
-az aks get-credentials --name <cluster_name> --resource-group <resource_group_name>
-```
+1. **Disable public access on the storage account** (recommended). The module creates the storage account with public access enabled so Terraform can set up the container and lifecycle policies. Once deployed, disable it so all access goes through the private endpoint:
+   ```bash
+   az storage account update --name <storage_account_name> --resource-group <resource_group_name> \
+     --public-network-access Disabled
+   ```
+   Terraform will not revert this change on subsequent applies.
+
+2. Configure kubectl access:
+   ```bash
+   az aks get-credentials --name <cluster_name> --resource-group <resource_group_name>
+   ```
 
 ## Outputs
 

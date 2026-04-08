@@ -187,11 +187,20 @@ resource "azurerm_storage_account" "mcd_agent" {
   }
 }
 
+resource "azurerm_role_assignment" "deployer_storage_blob_data_contributor" {
+  count                = var.storage.create_account ? 1 : 0
+  scope                = azurerm_storage_account.mcd_agent[0].id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 resource "azurerm_storage_container" "mcd_agent" {
   count                 = var.storage.create_account ? 1 : 0
   name                  = local.mcd_agent_store_container_name
   storage_account_name  = azurerm_storage_account.mcd_agent[0].name
   container_access_type = "private"
+
+  depends_on = [azurerm_role_assignment.deployer_storage_blob_data_contributor]
 }
 
 resource "azurerm_storage_management_policy" "mcd_agent" {

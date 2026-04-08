@@ -24,6 +24,7 @@ This module creates the following role assignments, which require `Microsoft.Aut
 
 | Role Assigned | Assignee | Scope | Purpose |
 |---|---|---|---|
+| **Storage Blob Data Contributor** | Terraform deployer | Storage Account | Allow Terraform to create containers and manage blobs via Azure AD auth |
 | **Key Vault Secrets Officer** | Terraform deployer | Key Vault | Allow Terraform to create the initial agent token secret |
 | **Key Vault Secrets User** | Managed Identity | Key Vault | Allow the agent to read secrets at runtime |
 | **Storage Blob Data Contributor** | Managed Identity | Storage Account | Allow the agent to read/write blob data |

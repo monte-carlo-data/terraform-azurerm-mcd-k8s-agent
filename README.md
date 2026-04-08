@@ -122,18 +122,27 @@ output "helm_values" {
 }
 ```
 
+## Agent Token Configuration
+
+Provide your Monte Carlo agent credentials via the `token_credentials` variable:
+
+```hcl
+token_credentials = {
+  mcd_id    = "YOUR_MCD_ID"
+  mcd_token = "YOUR_MCD_TOKEN"
+}
+```
+
+These are written to Key Vault on initial deployment. Subsequent `terraform apply` runs will not overwrite the secret value, so manual updates via `az keyvault secret set` are preserved.
+
+Alternatively, use an existing Key Vault with the token pre-populated via the `token_secret.existing_*` variables.
+
 ## After Deployment
 
-1. Update the agent token secret in Azure Key Vault:
-   ```bash
-   az keyvault secret set --vault-name <vault_name> --name mcd-agent-token \
-     --value '{"mcd_id":"YOUR_MCD_ID","mcd_token":"YOUR_MCD_TOKEN"}'
-   ```
-
-2. Configure kubectl access:
-   ```bash
-   az aks get-credentials --name <cluster_name> --resource-group <resource_group_name>
-   ```
+Configure kubectl access:
+```bash
+az aks get-credentials --name <cluster_name> --resource-group <resource_group_name>
+```
 
 ## Outputs
 

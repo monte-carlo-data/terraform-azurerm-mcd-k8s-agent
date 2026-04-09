@@ -197,13 +197,22 @@ resource "azurerm_role_assignment" "deployer_storage_blob_data_contributor" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+# Azure AD role assignments can take up to 60 seconds to propagate. Without this
+# wait, the container creation fails with 403 because the deployer's role is not
+# yet effective on the storage account data plane.
+resource "time_sleep" "wait_for_deployer_storage_role" {
+  count           = var.storage.create_account ? 1 : 0
+  create_duration = "60s"
+  depends_on      = [azurerm_role_assignment.deployer_storage_blob_data_contributor]
+}
+
 resource "azurerm_storage_container" "mcd_agent" {
   count                 = var.storage.create_account ? 1 : 0
   name                  = local.mcd_agent_store_container_name
   storage_account_name  = azurerm_storage_account.mcd_agent[0].name
   container_access_type = "private"
 
-  depends_on = [azurerm_role_assignment.deployer_storage_blob_data_contributor]
+  depends_on = [time_sleep.wait_for_deployer_storage_role]
 }
 
 resource "azurerm_storage_management_policy" "mcd_agent" {
@@ -276,13 +285,22 @@ resource "azurerm_role_assignment" "deployer_key_vault_secrets_officer" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+# Azure AD role assignments can take up to 60 seconds to propagate. Without this
+# wait, the secret creation fails with 403 because the deployer's role is not
+# yet effective on the Key Vault.
+resource "time_sleep" "wait_for_deployer_kv_role" {
+  count           = var.token_secret.create_key_vault ? 1 : 0
+  create_duration = "60s"
+  depends_on      = [azurerm_role_assignment.deployer_key_vault_secrets_officer]
+}
+
 resource "azurerm_key_vault_secret" "mcd_agent_token" {
   count        = var.token_secret.create_key_vault ? 1 : 0
   name         = var.token_secret.name
   value        = jsonencode({ "mcd_id" = coalesce(var.token_credentials.mcd_id, ""), "mcd_token" = coalesce(var.token_credentials.mcd_token, "") })
   key_vault_id = azurerm_key_vault.mcd_agent[0].id
 
-  depends_on = [azurerm_role_assignment.deployer_key_vault_secrets_officer]
+  depends_on = [time_sleep.wait_for_deployer_kv_role]
 
   lifecycle {
     ignore_changes = [value]

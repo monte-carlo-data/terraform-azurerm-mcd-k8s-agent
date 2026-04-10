@@ -139,6 +139,10 @@ resource "azurerm_kubernetes_cluster" "mcd_agent" {
     vm_size         = var.cluster.default_node_pool.vm_size
     vnet_subnet_id  = local.effective_subnet_id
     os_disk_size_gb = 50
+
+    upgrade_settings {
+      max_surge = "10%"
+    }
   }
 
   identity {

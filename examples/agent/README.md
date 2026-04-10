@@ -11,18 +11,14 @@ This example deploys the Monte Carlo on-prem agent on a new AKS cluster with all
 ## Usage
 
 ```bash
+cp credentials.tfvars.example credentials.tfvars
+# Edit credentials.tfvars with your Monte Carlo mcd_id and mcd_token
+
 terraform init
-terraform apply
+terraform apply -var-file=credentials.tfvars
 ```
 
 ## After Deployment
-
-1. Update the agent token secret in Azure Key Vault with your Monte Carlo credentials:
-   ```bash
-   az keyvault secret set --vault-name $(terraform output -raw key_vault_url | sed 's|https://||;s|\.vault\.azure\.net.*||') \
-     --name mcd-agent-token \
-     --value '{"mcd_id":"YOUR_MCD_ID","mcd_token":"YOUR_MCD_TOKEN"}'
-   ```
 
 2. Configure kubectl:
    ```bash

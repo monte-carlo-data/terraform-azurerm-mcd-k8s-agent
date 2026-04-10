@@ -1,9 +1,31 @@
+provider "azurerm" {
+  features {}
+  storage_use_azuread = true
+}
+
+variable "mcd_id" {
+  description = "Monte Carlo agent ID."
+  type        = string
+  sensitive   = true
+}
+
+variable "mcd_token" {
+  description = "Monte Carlo agent token."
+  type        = string
+  sensitive   = true
+}
+
 module "mcd_on_prem_agent" {
   source = "../../"
 
   location            = "East US"
   backend_service_url = "https://your-instance.getmontecarlo.com"
   helm                = { chart_version = "0.0.2" }
+
+  token_credentials = {
+    mcd_id    = var.mcd_id
+    mcd_token = var.mcd_token
+  }
 
   # Create a new AKS cluster in an existing VNet
   networking = {

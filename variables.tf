@@ -153,7 +153,7 @@ variable "private_link" {
 }
 
 variable "custom_values" {
-  description = "Custom Helm values to merge with module-generated values. Accepts any map matching the chart's values.yaml schema."
+  description = "Custom Helm values to merge with module-generated values. Accepts any map matching the chart's values.yaml schema. NOTE: merge is shallow — overriding a nested object (e.g. `container`) replaces it entirely, dropping module-generated keys like `backendServiceUrl` and `storageAccountName`. When overriding nested objects, include all required keys."
   type        = any
   default     = {}
 }

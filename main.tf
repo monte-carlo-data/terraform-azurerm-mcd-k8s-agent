@@ -119,8 +119,8 @@ resource "azurerm_user_assigned_identity" "cluster" {
 }
 
 resource "azurerm_role_assignment" "cluster_network_contributor" {
-  count                = var.cluster.create && var.networking.create_vnet ? 1 : 0
-  scope                = azurerm_virtual_network.mcd_agent[0].id
+  count                = var.cluster.create ? 1 : 0
+  scope                = local.effective_vnet_id
   role_definition_name = "Network Contributor"
   principal_id         = azurerm_user_assigned_identity.cluster[0].principal_id
 }
@@ -274,6 +274,8 @@ resource "azurerm_key_vault" "mcd_agent" {
   tenant_id           = local.effective_tenant_id
   sku_name            = "standard"
 
+  # TODO(AzureRM 4.x): enable_rbac_authorization is deprecated in AzureRM 4.x
+  # where RBAC authorization is the default. Remove this when upgrading past < 4.0.0.
   enable_rbac_authorization = true
   tags                      = local.default_tags
 }
@@ -360,6 +362,8 @@ resource "helm_release" "external_secrets" {
   namespace        = "external-secrets"
   create_namespace = true
 
+  # Explicit dependency: when creating a new cluster, helm must wait for it.
+  # When using an existing cluster, the dependency resolves to an empty list (no-op).
   depends_on = [azurerm_kubernetes_cluster.mcd_agent]
 }
 
@@ -383,6 +387,8 @@ resource "kubernetes_namespace_v1" "mcd_agent" {
     }
   }
 
+  # Explicit dependency: when creating a new cluster, the namespace must wait for it.
+  # When using an existing cluster, the dependency resolves to an empty list (no-op).
   depends_on = [azurerm_kubernetes_cluster.mcd_agent]
 }
 

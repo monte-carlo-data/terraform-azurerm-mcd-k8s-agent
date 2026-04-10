@@ -9,6 +9,19 @@ This module deploys the [Monte Carlo](https://www.montecarlodata.com/) container
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) for cluster access
 - A Monte Carlo account with agent credentials (mcd_id and mcd_token)
 
+## Provider Configuration
+
+This module does **not** configure the `azurerm` provider — the calling root module must do so. The following settings are required:
+
+```hcl
+provider "azurerm" {
+  features {}
+  storage_use_azuread = true  # Required: the module uses Azure AD auth for storage (no shared keys)
+}
+```
+
+The `helm` and `kubernetes` providers are configured inside this module because they depend on the cluster's kubeconfig, which is only available after the cluster is created or read. This is a [known compromise](https://developer.hashicorp.com/terraform/language/modules/develop/providers) for modules that deploy Kubernetes resources.
+
 ## Required Azure Permissions
 
 The identity running Terraform (your user or service principal) needs the following roles on the target subscription or resource group:
@@ -35,9 +48,16 @@ This module creates the following role assignments, which require `Microsoft.Aut
 
 ## Usage
 
+All examples below require the `azurerm` provider configured as described in [Provider Configuration](#provider-configuration).
+
 ### Full deployment (new cluster)
 
 ```hcl
+provider "azurerm" {
+  features {}
+  storage_use_azuread = true
+}
+
 module "mcd_agent" {
   source = "monte-carlo-data/mcd-agent-k8s/azurerm"
 
@@ -125,16 +145,15 @@ output "helm_values" {
 
 ## Agent Token Configuration
 
-Provide your Monte Carlo agent credentials via the `token_credentials` variable:
+Each example includes a `credentials.tfvars.example` file. Copy it, fill in your Monte Carlo credentials, and pass it when applying:
 
-```hcl
-token_credentials = {
-  mcd_id    = "YOUR_MCD_ID"
-  mcd_token = "YOUR_MCD_TOKEN"
-}
+```bash
+cp credentials.tfvars.example credentials.tfvars
+# Edit credentials.tfvars with your mcd_id and mcd_token
+terraform apply -var-file=credentials.tfvars
 ```
 
-These are written to Key Vault on initial deployment. Subsequent `terraform apply` runs will not overwrite the secret value, so manual updates via `az keyvault secret set` are preserved.
+The credentials are written to Key Vault on initial deployment. Subsequent `terraform apply` runs will not overwrite the secret value, so manual updates via `az keyvault secret set` are preserved.
 
 Alternatively, use an existing Key Vault with the token pre-populated via the `token_secret.existing_*` variables.
 

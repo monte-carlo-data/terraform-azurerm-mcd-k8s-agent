@@ -57,4 +57,5 @@ output "private_endpoint_ip" {
 output "helm_values" {
   description = "Helm values used for agent deployment. Use these for manual Helm deployment when deploy_agent is false."
   value       = local.helm_values_yaml
+  sensitive   = false
 }

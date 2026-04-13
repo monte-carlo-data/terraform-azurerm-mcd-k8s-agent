@@ -155,8 +155,8 @@ resource "azurerm_kubernetes_cluster" "mcd_agent" {
 
   network_profile {
     network_plugin = "azure"
-    service_cidr   = "172.16.0.0/16"
-    dns_service_ip = "172.16.0.10"
+    service_cidr   = var.cluster.service_cidr
+    dns_service_ip = var.cluster.dns_service_ip
   }
 
   tags = local.default_tags

@@ -27,6 +27,8 @@ variable "cluster" {
     }), { vm_size = "Standard_DS2_v2", node_count = 1 })
     oidc_issuer_enabled       = optional(bool, true)
     workload_identity_enabled = optional(bool, true)
+    service_cidr              = optional(string, "172.16.0.0/16")
+    dns_service_ip            = optional(string, "172.16.0.10")
   })
   default = {}
 

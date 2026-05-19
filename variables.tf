@@ -140,7 +140,7 @@ variable "helm" {
     chart_name                        = optional(string, "generic-agent-helm")
     chart_version                     = string
     service_annotations               = optional(map(string), {})
-    enabled_logs_collector            = optional(bool, true)
+    log_shipping                      = optional(string, "in-process")
     enabled_metrics_collector         = optional(bool, true)
   })
 }

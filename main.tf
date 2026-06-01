@@ -7,9 +7,9 @@ locals {
   namespace              = var.agent.namespace
   service_account_name   = "mcd-agent-service-account"
 
-  # OAuth is active when credentials are provided OR when using a pre-existing OAuth secret
-  use_oauth           = var.oauth_credentials != null || !var.oauth_secret.create
-  create_oauth_secret = var.oauth_credentials != null && var.oauth_secret.create
+  use_existing_oauth_secret = !var.oauth_secret.create
+  create_oauth_secret       = var.oauth_credentials != null && var.oauth_secret.create
+  use_oauth                 = var.oauth_credentials != null || local.use_existing_oauth_secret
 
   default_tags = merge(var.custom_default_tags, {
     "mcd-agent-service-name"    = lower(local.mcd_agent_service_name)

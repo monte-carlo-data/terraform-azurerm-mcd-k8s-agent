@@ -191,12 +191,6 @@ oauth_secret = {
 }
 ```
 
-To override the OAuth token endpoint (only needed for non-standard setups):
-
-```hcl
-oauth_token_endpoint = "https://custom-auth.example.com/token"
-```
-
 ## After Deployment
 
 1. **Disable public access on the storage account** (recommended). The module creates the storage account with public access enabled so Terraform can set up the container and lifecycle policies. Once deployed, disable it so all access goes through the private endpoint:

@@ -143,7 +143,11 @@ output "helm_values" {
 }
 ```
 
-## Agent Token Configuration
+## Authentication
+
+The module supports two authentication methods: **key/token** (default) and **OAuth 2.0 Client Credentials**. Only one should be used at a time.
+
+### Key/Token Authentication (default)
 
 Each example includes a `credentials.tfvars.example` file. Copy it, fill in your Monte Carlo credentials, and pass it when applying:
 
@@ -156,6 +160,36 @@ terraform apply -var-file=credentials.tfvars
 The credentials are written to Key Vault on initial deployment. Subsequent `terraform apply` runs will not overwrite the secret value, so manual updates via `az keyvault secret set` are preserved.
 
 Alternatively, use an existing Key Vault with the token pre-populated via the `token_secret.existing_*` variables.
+
+### OAuth 2.0 Client Credentials
+
+To use OAuth instead of key/token authentication, provide `oauth_credentials`:
+
+```hcl
+module "mcd_agent" {
+  source = "monte-carlo-data/mcd-agent-k8s/azurerm"
+
+  location            = "East US"
+  backend_service_url = "https://your-instance.getmontecarlo.com"
+  helm                = { chart_version = "0.0.2" }
+
+  oauth_credentials = {
+    client_id     = var.oauth_client_id
+    client_secret = var.oauth_client_secret
+  }
+}
+```
+
+The OAuth secret is stored in the same Key Vault as the token secret. When `oauth_credentials` is set, the module skips token secret creation and configures the Helm chart with `oauthSecret` instead of `tokenSecret`.
+
+To use a pre-existing OAuth secret in Key Vault, set `oauth_secret.create = false` and provide the secret name:
+
+```hcl
+oauth_secret = {
+  create = false
+  name   = "my-existing-oauth-secret"
+}
+```
 
 ## After Deployment
 
@@ -186,6 +220,7 @@ Alternatively, use an existing Key Vault with the token pre-populated via the `t
 | namespace | Kubernetes namespace for the agent |
 | private_endpoint_id | ID of the Monte Carlo Private Link endpoint |
 | private_endpoint_ip | Private IP address of the Monte Carlo Private Link endpoint |
+| oauth_secret_name | Name of the Key Vault secret for OAuth credentials |
 | helm_values | Helm values for manual deployment |
 
 ## Releases and Development

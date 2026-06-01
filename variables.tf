@@ -111,6 +111,25 @@ variable "token_credentials" {
   default   = {}
 }
 
+variable "oauth_credentials" {
+  description = "OAuth client credentials for agent authentication. If provided, the module creates a secret in Azure Key Vault and configures the Helm chart to use OAuth instead of key/token. Only one of oauth_credentials or token_credentials should be set."
+  type = object({
+    client_id     = string
+    client_secret = string
+  })
+  default   = null
+  sensitive = true
+}
+
+variable "oauth_secret" {
+  description = "OAuth secret configuration. The secret is stored in the same Key Vault as the token secret. Only needed to customize the secret name or to reference a pre-existing secret (create = false). When null and oauth_credentials is set, the module creates a secret with the default name."
+  type = object({
+    create = optional(bool, true)
+    name   = optional(string, "mcd-agent-oauth")
+  })
+  default = null
+}
+
 variable "integration_secrets" {
   description = "Integration secrets to sync from the cloud secret store."
   type = list(object({

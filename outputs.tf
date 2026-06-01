@@ -54,6 +54,11 @@ output "private_endpoint_ip" {
   value       = var.private_link != null ? azurerm_private_endpoint.monte_carlo[0].private_service_connection[0].private_ip_address : null
 }
 
+output "oauth_secret_name" {
+  description = "Name of the Key Vault secret for OAuth credentials."
+  value       = local.use_oauth ? var.oauth_secret.name : null
+}
+
 output "helm_values" {
   description = "Helm values used for agent deployment. Use these for manual Helm deployment when deploy_agent is false."
   value       = local.helm_values_yaml

@@ -7,6 +7,10 @@ locals {
   namespace              = var.agent.namespace
   service_account_name   = "mcd-agent-service-account"
 
+  # OAuth is active when credentials are provided OR when using a pre-existing OAuth secret
+  use_oauth           = var.oauth_credentials != null || !var.oauth_secret.create
+  create_oauth_secret = var.oauth_credentials != null && var.oauth_secret.create
+
   default_tags = merge(var.custom_default_tags, {
     "mcd-agent-service-name"    = lower(local.mcd_agent_service_name)
     "mcd-agent-deployment-type" = lower(local.mcd_agent_deployment_type)
@@ -301,7 +305,7 @@ resource "time_sleep" "wait_for_deployer_kv_role" {
 }
 
 resource "azurerm_key_vault_secret" "mcd_agent_token" {
-  count        = var.token_secret.create_key_vault ? 1 : 0
+  count        = !local.use_oauth && var.token_secret.create_key_vault ? 1 : 0
   name         = var.token_secret.name
   value        = jsonencode({ "mcd_id" = coalesce(var.token_credentials.mcd_id, ""), "mcd_token" = coalesce(var.token_credentials.mcd_token, "") })
   key_vault_id = azurerm_key_vault.mcd_agent[0].id
@@ -318,6 +322,19 @@ resource "azurerm_key_vault_secret" "mcd_agent_token" {
   }
 }
 
+resource "azurerm_key_vault_secret" "mcd_agent_oauth" {
+  count        = local.create_oauth_secret ? 1 : 0
+  name         = var.oauth_secret.name
+  value        = jsonencode({ "client_id" = var.oauth_credentials.client_id, "client_secret" = var.oauth_credentials.client_secret })
+  key_vault_id = local.effective_key_vault_id
+
+  depends_on = [time_sleep.wait_for_deployer_kv_role]
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 # -----------------------------------------------------------------------------
 # User Assigned Managed Identity + Federated Credential
 # -----------------------------------------------------------------------------
@@ -327,6 +344,13 @@ resource "azurerm_user_assigned_identity" "mcd_agent" {
   resource_group_name = local.effective_resource_group_name
   location            = local.effective_resource_group_location
   tags                = local.default_tags
+
+  lifecycle {
+    precondition {
+      condition     = var.oauth_credentials == null || (var.token_credentials.mcd_id == null && var.token_credentials.mcd_token == null)
+      error_message = "Only one of oauth_credentials or token_credentials should be set, not both."
+    }
+  }
 }
 
 resource "azurerm_federated_identity_credential" "mcd_agent" {
@@ -418,70 +442,86 @@ resource "helm_release" "mcd_agent" {
 }
 
 locals {
-  base_helm_values = {
-    namespace    = local.namespace
-    replicaCount = var.agent.replica_count
-
-    image = {
-      repository = split(":", var.agent.image)[0]
-      pullPolicy = var.agent.pull_policy
-      tag        = length(split(":", var.agent.image)) > 1 ? split(":", var.agent.image)[1] : "latest-generic"
-    }
-
-    container = {
-      backendServiceUrl  = var.backend_service_url
-      storageAccountName = local.effective_storage_account_name
-      storageBucketName  = local.effective_storage_container_name
-      storageType        = "AZURE_BLOB"
-    }
-
-    service = {
-      annotations = var.helm.service_annotations
-    }
-
-    serviceAccount = {
-      annotations = {
-        "azure.workload.identity/client-id" = azurerm_user_assigned_identity.mcd_agent.client_id
-      }
-    }
-
-    deploymentTemplateLabels = {
-      "azure.workload.identity/use" = "true"
-    }
-
-    secretStore = {
-      provider = {
-        azurekv = {
-          tenantId = local.effective_tenant_id
-          authType = "WorkloadIdentity"
-          vaultUrl = local.effective_key_vault_url
-          serviceAccountRef = {
-            name      = local.service_account_name
-            namespace = local.namespace
-          }
+  auth_helm_values = local.use_oauth ? {
+    oauthSecret = merge(
+      {
+        remoteRef = {
+          key = var.oauth_secret.name
         }
-      }
-    }
-
+      },
+      var.oauth_token_endpoint != "" ? { tokenEndpoint = var.oauth_token_endpoint } : {}
+    )
+    } : {
     tokenSecret = {
       remoteRef = {
         key = var.token_secret.name
       }
     }
-
-    integrationsSecrets = {
-      data = [for s in var.integration_secrets : {
-        secretKey = s.secret_key
-        remoteRef = {
-          key = s.remote_ref_key
-        }
-      }]
-    }
-
-    logShipping      = var.helm.log_shipping
-    metricsCollector = { enabled = var.helm.enabled_metrics_collector }
   }
 
+  base_helm_values = merge(
+    {
+      namespace    = local.namespace
+      replicaCount = var.agent.replica_count
+
+      image = {
+        repository = split(":", var.agent.image)[0]
+        pullPolicy = var.agent.pull_policy
+        tag        = length(split(":", var.agent.image)) > 1 ? split(":", var.agent.image)[1] : "latest-generic"
+      }
+
+      container = {
+        backendServiceUrl  = var.backend_service_url
+        storageAccountName = local.effective_storage_account_name
+        storageBucketName  = local.effective_storage_container_name
+        storageType        = "AZURE_BLOB"
+      }
+
+      service = {
+        annotations = var.helm.service_annotations
+      }
+
+      serviceAccount = {
+        annotations = {
+          "azure.workload.identity/client-id" = azurerm_user_assigned_identity.mcd_agent.client_id
+        }
+      }
+
+      deploymentTemplateLabels = {
+        "azure.workload.identity/use" = "true"
+      }
+
+      secretStore = {
+        provider = {
+          azurekv = {
+            tenantId = local.effective_tenant_id
+            authType = "WorkloadIdentity"
+            vaultUrl = local.effective_key_vault_url
+            serviceAccountRef = {
+              name      = local.service_account_name
+              namespace = local.namespace
+            }
+          }
+        }
+      }
+
+      integrationsSecrets = {
+        data = [for s in var.integration_secrets : {
+          secretKey = s.secret_key
+          remoteRef = {
+            key = s.remote_ref_key
+          }
+        }]
+      }
+
+      logShipping      = var.helm.log_shipping
+      metricsCollector = { enabled = var.helm.enabled_metrics_collector }
+    },
+    local.auth_helm_values
+  )
+
+  # Merge custom_values over base, then re-apply typed module fields
+  # so the module-managed values always win
   helm_values = merge(local.base_helm_values, var.custom_values, {
     logShipping = var.helm.log_shipping
     metricsCollector = merge(

@@ -56,7 +56,7 @@ output "private_endpoint_ip" {
 
 output "oauth_secret_name" {
   description = "Name of the Key Vault secret for OAuth credentials."
-  value       = local.use_oauth ? var.oauth_secret.name : null
+  value       = local.use_oauth ? local.oauth_secret_name : null
 }
 
 output "helm_values" {

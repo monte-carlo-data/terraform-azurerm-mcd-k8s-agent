@@ -7,9 +7,9 @@ locals {
   namespace              = var.agent.namespace
   service_account_name   = "mcd-agent-service-account"
 
-  use_existing_oauth_secret = !var.oauth_secret.create
-  create_oauth_secret       = var.oauth_credentials != null && var.oauth_secret.create
-  use_oauth                 = var.oauth_credentials != null || local.use_existing_oauth_secret
+  use_oauth           = var.oauth_credentials != null || var.oauth_secret != null
+  create_oauth_secret = var.oauth_credentials != null && (var.oauth_secret == null || var.oauth_secret.create)
+  oauth_secret_name   = var.oauth_secret != null ? var.oauth_secret.name : "mcd-agent-oauth"
 
   default_tags = merge(var.custom_default_tags, {
     "mcd-agent-service-name"    = lower(local.mcd_agent_service_name)
@@ -324,7 +324,7 @@ resource "azurerm_key_vault_secret" "mcd_agent_token" {
 
 resource "azurerm_key_vault_secret" "mcd_agent_oauth" {
   count        = local.create_oauth_secret ? 1 : 0
-  name         = var.oauth_secret.name
+  name         = local.oauth_secret_name
   value        = jsonencode({ "client_id" = var.oauth_credentials.client_id, "client_secret" = var.oauth_credentials.client_secret })
   key_vault_id = local.effective_key_vault_id
 
@@ -445,7 +445,7 @@ locals {
   auth_helm_values = local.use_oauth ? {
     oauthSecret = {
       remoteRef = {
-        key = var.oauth_secret.name
+        key = local.oauth_secret_name
       }
     }
     } : {

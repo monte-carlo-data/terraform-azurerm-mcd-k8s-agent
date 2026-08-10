@@ -24,6 +24,11 @@ variable "cluster" {
     default_node_pool = optional(object({
       vm_size    = string
       node_count = number
+      # Kubernetes version for the node pool. Defaults to the cluster's
+      # kubernetes_version. Set explicitly only to stage the node pool upgrade
+      # separately from the control plane; it must never exceed the control
+      # plane version.
+      orchestrator_version = optional(string, null)
     }), { vm_size = "Standard_DS2_v2", node_count = 1 })
     oidc_issuer_enabled       = optional(bool, true)
     workload_identity_enabled = optional(bool, true)

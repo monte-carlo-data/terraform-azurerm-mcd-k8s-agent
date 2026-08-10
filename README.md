@@ -110,6 +110,41 @@ module "mcd_agent" {
 }
 ```
 
+### Kubernetes version
+
+```hcl
+module "mcd_agent" {
+  source = "monte-carlo-data/mcd-agent-k8s/azurerm"
+
+  location            = "East US"
+  backend_service_url = "https://your-instance.getmontecarlo.com"
+  helm                = { chart_version = "0.0.2" }
+
+  cluster = {
+    kubernetes_version = "1.36"
+  }
+}
+```
+
+The default node pool follows `kubernetes_version`, so the control plane and the nodes are upgraded by the same apply.
+
+To stage the node pool upgrade separately — upgrading the control plane first and the nodes later — pin it explicitly:
+
+```hcl
+cluster = {
+  kubernetes_version = "1.36"
+  default_node_pool = {
+    vm_size              = "Standard_DS2_v2"
+    node_count           = 1
+    orchestrator_version = "1.35"
+  }
+}
+```
+
+`orchestrator_version` must never exceed `kubernetes_version`; AKS rejects a node pool newer than its control plane.
+
+> **Note:** AKS restricts which versions you can upgrade to, and how far you can jump in a single step is not fixed. Run `az aks get-upgrades --name <cluster> --resource-group <rg>` before each upgrade and set `kubernetes_version` to a version it lists. Crossing several minors takes more than one apply.
+
 ### Private Link
 
 ```hcl

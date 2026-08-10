@@ -144,6 +144,14 @@ resource "azurerm_kubernetes_cluster" "mcd_agent" {
     vnet_subnet_id  = local.effective_subnet_id
     os_disk_size_gb = 50
 
+    # Tracks the cluster version unless overridden. Left unmanaged, the node
+    # pool keeps its original version when kubernetes_version moves, leaving
+    # kubelet behind the API server.
+    orchestrator_version = coalesce(
+      var.cluster.default_node_pool.orchestrator_version,
+      var.cluster.kubernetes_version
+    )
+
     upgrade_settings {
       max_surge = "10%"
     }

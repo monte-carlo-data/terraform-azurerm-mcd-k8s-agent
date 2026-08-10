@@ -4,7 +4,7 @@ This module deploys the [Monte Carlo](https://www.montecarlodata.com/) container
 
 ## Prerequisites
 
-- [Terraform](https://www.terraform.io/downloads.html) >= 1.3
+- [Terraform](https://www.terraform.io/downloads.html) >= 1.12
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) with [authentication](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs#authenticating-to-azure)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) for cluster access
 - A Monte Carlo account with agent credentials (mcd_id and mcd_token)
